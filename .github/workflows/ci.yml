@@ -1,0 +1,52 @@
+name: CI & DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  audit-test-build:
+    name: Build, Audit & Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [ 20.x, 22.x ]
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install All Dependencies
+        run: |
+          npm install
+          npm --prefix backend install
+          npm --prefix frontend install
+
+      - name: Dependency Vulnerability Audit
+        run: |
+          npm audit --audit-level=high
+          npm --prefix backend audit --audit-level=high
+          npm --prefix frontend audit --audit-level=high
+
+      - name: Secrets & Artifact Leak Check
+        run: |
+          echo "Verifying no credentials or database files are committed..."
+          ! find . -type f \( -name "*.db" -o -name "*.env" -o -name "*.pem" -o -name "*.key" \) -not -path "*/node_modules/*" -not -name "*.example" | grep .
+
+      - name: Run Backend Integration & Security Tests
+        run: npm test
+
+      - name: Build Frontend Application
+        run: npm run build
