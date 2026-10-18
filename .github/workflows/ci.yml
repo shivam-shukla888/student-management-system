@@ -26,7 +26,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
 
       - name: Install All Dependencies
         run: |
@@ -43,7 +42,13 @@ jobs:
       - name: Secrets & Artifact Leak Check
         run: |
           echo "Verifying no credentials or database files are committed..."
-          ! find . -type f \( -name "*.db" -o -name "*.env" -o -name "*.pem" -o -name "*.key" \) -not -path "*/node_modules/*" -not -name "*.example" | grep .
+          LEAKS=$(find . -type f \( -name "*.db" -o -name "*.env" -o -name "*.pem" -o -name "*.key" \) -not -path "*/node_modules/*" -not -name "*.example")
+          if [ -n "$LEAKS" ]; then
+            echo "Forbidden files detected in commit:"
+            echo "$LEAKS"
+            exit 1
+          fi
+          echo "Clean: No forbidden secrets or database files detected."
 
       - name: Run Backend Integration & Security Tests
         run: npm test
